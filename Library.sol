@@ -57,6 +57,7 @@ contract Library is Ownable {
         for (uint i = 0; i < books.length; i++) {
             if (booksCopies[i] > 0) {
                 result[resultIdx] = i;
+                resultIdx++;
             }
         }
         
