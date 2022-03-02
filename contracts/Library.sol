@@ -14,6 +14,11 @@ contract Library is Ownable {
         uint availabeCopies;
     }
 
+    struct UserBookUI {
+        uint id;
+        string title;
+    }
+
     struct Book {
         string title;
     }
@@ -23,10 +28,12 @@ contract Library is Ownable {
     mapping (uint => uint) booksCopies;
     mapping (uint => bool) addedBooksTitles;
     mapping (uint => uint) titleIdToBookId;
-    mapping (uint => address[]) booksBorrowersHistory;
-    mapping (uint => mapping(address => bool)) booksBorrowers;
-    mapping (uint => bool) currentlyBorrowed;
     
+    mapping (uint => mapping(address => bool)) booksBorrowers;
+    mapping (uint => address[]) booksBorrowersHistory;
+    
+    mapping (uint => bool) currentlyBorrowed;
+    mapping (address => uint[]) userBooks;
 
     modifier onlyValidBookId(uint _bookId) {
         require(_bookId <= books.length - 1, "Invalid book id");
@@ -71,6 +78,8 @@ contract Library is Ownable {
         
         booksBorrowers[_bookId][msg.sender] = true;
         currentlyBorrowed[getUniqueBorrowerBookId(_bookId)] = true;
+        
+        userBooks[msg.sender].push(_bookId);
 
         booksCopies[_bookId]--;
     }
@@ -78,10 +87,35 @@ contract Library is Ownable {
     function returnBook(uint _bookId) external onlyValidBookId(_bookId) onlyAlreadyBorrowed(_bookId) {        
         booksCopies[_bookId]++;
         delete currentlyBorrowed[getUniqueBorrowerBookId(_bookId)];
+
+        uint[] storage currentUserBooks = userBooks[msg.sender];
+        uint length = currentUserBooks.length;
+
+        uint idx = 0;
+        for (uint i = 0; i < length; i++) {
+            if (currentUserBooks[i] == _bookId) {
+                idx = i;
+                break;
+            }
+        }
+
+        currentUserBooks[idx] = currentUserBooks[length - 1];
+        currentUserBooks.pop();
     }
     
-    function getUserBorrowedBooks() external view returns(BookUI[] memory result) {
+    function getUserBorrowedBooks() external view returns(UserBookUI[] memory result) {
+        uint[] storage currentUserBooks = userBooks[msg.sender];
 
+        uint length = currentUserBooks.length;
+        result = new UserBookUI[](length);
+
+        for (uint i = 0; i < currentUserBooks.length; i++) {
+            uint id = currentUserBooks[i]; 
+            result[i] = UserBookUI({
+                id: id,
+                title: books[id].title
+            });
+        }
     }
 
     function getBookBorrowersHistory(uint _bookId) external view returns(address[] memory) {
@@ -89,11 +123,10 @@ contract Library is Ownable {
     }
     
     function getAvailableBooks() external view returns(BookUI[] memory result) {
+        // TODO: Can be optimized to have availableBooksCount so we return only them
         result = new BookUI[](books.length);
 
         for (uint i = 0; i < books.length; i++) {
-            console.log("i ", i);
-            console.log("booksCopies[i] ", booksCopies[i]);
             result[i] = BookUI({
                 id: i, 
                 title: books[i].title,
